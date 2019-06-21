@@ -22,6 +22,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSyntaxException;
+import javafx.util.Pair;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.springframework.util.StringUtils;
 import org.thingsboard.server.common.data.kv.AttributeKey;
@@ -126,40 +127,149 @@ public class JsonConverter {
         request.addTsKvList(builder.build());
     }
 
-    private static List<KeyValueProto> parseProtoValues(JsonObject valuesObject) {
+    /**
+     * 解析基础属性值
+     * @param cJsonObj 传入json对象
+     * @return 返回解析后的值
+     */
+    private static List<KeyValueProto> parseValue(String strKeyName, JsonElement cJsonObj, List<KeyValueProto> result) {
+        // 获取属性值
+        JsonPrimitive value = cJsonObj.getAsJsonPrimitive();
+        // 判断属性类型
+        // 字符串类型
+        if (value.isString()) {
+            // 长度判断
+            if (maxStringValueLength > 0 && value.getAsString().length() > maxStringValueLength) {
+                String message = String.format("String value length [%d] for key [%s] is greater than maximum allowed [%d]", value.getAsString().length(), strKeyName, maxStringValueLength);
+                throw new JsonSyntaxException(message);
+            }
+            result.add(KeyValueProto.newBuilder().setKey(strKeyName).setType(KeyValueType.STRING_V)
+                    .setStringV(value.getAsString()).build());
+        } else if (value.isBoolean()) {
+            result.add(KeyValueProto.newBuilder().setKey(strKeyName).setType(KeyValueType.BOOLEAN_V)
+                    .setBoolV(value.getAsBoolean()).build());
+        } else if (value.isNumber()) {
+            if (value.getAsString().contains(".")) {
+                result.add(KeyValueProto.newBuilder().setKey(strKeyName).setType(KeyValueType.DOUBLE_V)
+                        .setDoubleV(value.getAsDouble()).build());
+            } else {
+                result.add(KeyValueProto.newBuilder().setKey(strKeyName).setType(KeyValueType.LONG_V)
+                        .setLongV(value.getAsLong()).build());
+            }
+        } else {
+            throw new JsonSyntaxException(CAN_T_PARSE_VALUE + cJsonObj);
+        }
+
+        return result;
+    }
+
+    /**
+     * 子节点解析
+     * @param strKeyName 节点名称
+     * @param cJsonElement 节点element对象
+     * @return 返回pair类型，K为解析成基本类型值；V为pair类型的list，即下一层节点，K为节点名称，V为element对象
+     */
+    private static Pair<List<KeyValueProto>, List<Pair<String, JsonElement>>> parseChildNode(String strKeyName, JsonElement cJsonElement) {
+        List<Pair<String, JsonElement>> nextNodes = new ArrayList<>();
         List<KeyValueProto> result = new ArrayList<>();
-        for (Entry<String, JsonElement> valueEntry : valuesObject.entrySet()) {
+
+        for (Entry<String, JsonElement> valueEntry : cJsonElement.getAsJsonObject().entrySet()) {
+            // 获取节点属性
             JsonElement element = valueEntry.getValue();
+            // 判断是否基本类型
             if (element.isJsonPrimitive()) {
-                JsonPrimitive value = element.getAsJsonPrimitive();
-                if (value.isString()) {
-                    if (maxStringValueLength > 0 && value.getAsString().length() > maxStringValueLength) {
-                        String message = String.format("String value length [%d] for key [%s] is greater than maximum allowed [%d]", value.getAsString().length(), valueEntry.getKey(), maxStringValueLength);
-                        throw new JsonSyntaxException(message);
-                    }
-                    if(isTypeCastEnabled && NumberUtils.isParsable(value.getAsString())) {
-                        try {
-                            result.add(buildNumericKeyValueProto(value, valueEntry.getKey()));
-                        } catch (RuntimeException th) {
-                            result.add(KeyValueProto.newBuilder().setKey(valueEntry.getKey()).setType(KeyValueType.STRING_V)
-                                    .setStringV(value.getAsString()).build());
-                        }
+                // 基本类型解析
+                result = parseValue(strKeyName+"."+valueEntry.getKey(), element, result);
+            } else if (element.isJsonArray()) {
+                // 针对数组解析
+                // 获取整体数组
+                JsonArray cJsonArray = element.getAsJsonArray();
+
+                for (int i=0; i<cJsonArray.size(); ++i) {
+                    // 判断是否基本类型
+                    if (cJsonArray.get(i).isJsonPrimitive()) {
+                        // 基本类型解析
+                        result = parseValue(strKeyName+"."+valueEntry.getKey()+"."+(i+1), cJsonArray.get(i), result);
                     } else {
-                        result.add(KeyValueProto.newBuilder().setKey(valueEntry.getKey()).setType(KeyValueType.STRING_V)
-                                .setStringV(value.getAsString()).build());
+                        // 对象节点解析
+                        nextNodes.add(new Pair<>(strKeyName+"."+valueEntry.getKey()+"."+(i+1), cJsonArray.get(i)));
                     }
-                } else if (value.isBoolean()) {
-                    result.add(KeyValueProto.newBuilder().setKey(valueEntry.getKey()).setType(KeyValueType.BOOLEAN_V)
-                            .setBoolV(value.getAsBoolean()).build());
-                } else if (value.isNumber()) {
-                    result.add(buildNumericKeyValueProto(value, valueEntry.getKey()));
-                } else {
-                    throw new JsonSyntaxException(CAN_T_PARSE_VALUE + value);
                 }
             } else {
-                throw new JsonSyntaxException(CAN_T_PARSE_VALUE + element);
+                // 对象节点解析
+                nextNodes.add(new Pair<>(strKeyName+"."+valueEntry.getKey(), element));
             }
         }
+
+        return new Pair<>(result, nextNodes);
+    }
+
+    private static List<KeyValueProto> parseProtoValues(JsonObject valuesObject) {
+        List<KeyValueProto> result = new ArrayList<>();
+        // 遍历节点
+        for (Entry<String, JsonElement> valueEntry : valuesObject.entrySet()) {
+            // 获取节点属性
+            JsonElement element = valueEntry.getValue();
+            // 判断是否基本类型
+            if (element.isJsonPrimitive()) {
+                result = parseValue(valueEntry.getKey(), element, result);
+            } else {
+                // 复杂节点循环解析
+                String strKeyName = valueEntry.getKey();
+                JsonElement cChildElement = element;
+                // 子节点存储
+                List<Pair<String, JsonElement>> cChildNodeList = new ArrayList<>();
+
+                // 首层数组解析
+                if (element.isJsonArray()) {
+                    // 针对数组解析
+                    // 获取整体数组
+                    JsonArray cJsonArray = element.getAsJsonArray();
+                    for (int i=0; i<cJsonArray.size(); ++i) {
+                        // 判断是否基本类型
+                        if (cJsonArray.get(i).isJsonPrimitive()) {
+                            // 基本类型解析
+                            result = parseValue(strKeyName+"."+(i+1), cJsonArray.get(i), result);
+                        } else {
+                            // 对象节点解析
+                            cChildNodeList.add(new Pair<>(strKeyName+"."+(i+1), cJsonArray.get(i)));
+                        }
+                    }
+
+                    // 设置下个节点
+                    if (0 < cChildNodeList.size()) {
+                        // 取列表中第一个元素
+                        strKeyName = cChildNodeList.get(0).getKey();
+                        cChildElement = cChildNodeList.get(0).getValue();
+                        cChildNodeList.remove(0);
+                    } else {
+                        cChildElement = null;
+                    }
+                }
+
+                // 循环解析
+                while (null != cChildElement) {
+                    // 节点解析
+                    Pair<List<KeyValueProto>, List<Pair<String, JsonElement>>> cRet = parseChildNode(strKeyName, cChildElement);
+                    // 添加元素
+                    result.addAll(cRet.getKey());
+                    // 添加至待解析列表
+                    if (0 < cRet.getValue().size()) {
+                        cChildNodeList.addAll(cRet.getValue());
+                    }
+                    // 判断列表是否为空
+                    if (0 == cChildNodeList.size()) {
+                        break;
+                    } else {
+                        // 取列表中第一个元素
+                        strKeyName = cChildNodeList.get(0).getKey();
+                        cChildElement = cChildNodeList.get(0).getValue();
+                        cChildNodeList.remove(0);
+                    }
+                }
+            }
+        }
+
         return result;
     }
 
@@ -389,6 +499,67 @@ public class JsonConverter {
         return result;
     }
 
+    /**
+     * 复杂节点解析，未考虑Json数组。
+     * @param valuesObject: Json对象
+     * @param strPrekey: 前置key名称
+     * @return 返回基本类型的List以及剩余复杂类型的JsonElement
+     */
+    private static Pair<List<KvEntry>, Pair<String, JsonElement>> parseMultiJsonNode(JsonObject valuesObject, String strPrekey) {
+        List<KvEntry> result = new ArrayList<>();
+        Pair<String, JsonElement> cNextNode = null;
+
+        for (Entry<String, JsonElement> valueEntry : valuesObject.entrySet()) {
+            JsonElement element = valueEntry.getValue();
+            if (element.isJsonPrimitive()) {
+                JsonPrimitive value = element.getAsJsonPrimitive();
+                if (value.isString()) {
+                    if (maxStringValueLength > 0 && value.getAsString().length() > maxStringValueLength) {
+                        String message = String.format("String value length [%d] for key [%s] is greater than maximum allowed [%d]", value.getAsString().length(), strPrekey+"."+valueEntry.getKey(), maxStringValueLength);
+                        throw new JsonSyntaxException(message);
+                    }
+                    if(isTypeCastEnabled && NumberUtils.isParsable(value.getAsString())) {
+                        try {
+                            if (value.getAsString().contains(".")) {
+                                result.add(new DoubleDataEntry(strPrekey+"."+valueEntry.getKey(), value.getAsDouble()));
+                            } else {
+                                try {
+                                    long longValue = Long.parseLong(value.getAsString());
+                                    result.add(new LongDataEntry(strPrekey+"."+valueEntry.getKey(), longValue));
+                                } catch (NumberFormatException e) {
+                                    throw new JsonSyntaxException("Big integer values are not supported!");
+                                }
+                            }
+                        } catch (RuntimeException th) {
+                            result.add(new StringDataEntry(strPrekey+"."+valueEntry.getKey(), value.getAsString()));
+                        }
+                    } else {
+                        result.add(new StringDataEntry(strPrekey+"."+valueEntry.getKey(), value.getAsString()));
+                    }
+                } else if (value.isBoolean()) {
+                    result.add(new BooleanDataEntry(strPrekey+"."+valueEntry.getKey(), value.getAsBoolean()));
+                } else if (value.isNumber()) {
+                    if (value.getAsString().contains(".")) {
+                        result.add(new DoubleDataEntry(strPrekey+"."+valueEntry.getKey(), value.getAsDouble()));
+                    } else {
+                        try {
+                            long longValue = Long.parseLong(value.getAsString());
+                            result.add(new LongDataEntry(strPrekey+"."+valueEntry.getKey(), longValue));
+                        } catch (NumberFormatException e) {
+                            throw new JsonSyntaxException("Big integer values are not supported!");
+                        }
+                    }
+                } else {
+                    throw new JsonSyntaxException(CAN_T_PARSE_VALUE + value);
+                }
+            } else {
+                cNextNode = new Pair<>(strPrekey+"."+valueEntry.getKey(), element);
+            }
+        }
+
+        return new Pair<>(result, cNextNode);
+    }
+
     private static List<KvEntry> parseValues(JsonObject valuesObject) {
         List<KvEntry> result = new ArrayList<>();
         for (Entry<String, JsonElement> valueEntry : valuesObject.entrySet()) {
@@ -417,7 +588,20 @@ public class JsonConverter {
                     throw new JsonSyntaxException(CAN_T_PARSE_VALUE + value);
                 }
             } else {
-                throw new JsonSyntaxException(CAN_T_PARSE_VALUE + element);
+                System.out.println(element);
+//                // 设置key name
+//                String strKeyName = valueEntry.getKey();
+//                // 循环解析
+//                for (JsonElement cIteraElement = element; null!=cIteraElement; ) {
+//                    // 进行下一层解析
+//                    Pair<List<KvEntry>, Pair<String, JsonElement>> cResultPair = parseMultiJsonNode(cIteraElement.getAsJsonObject(), strKeyName);
+//                    // 解析数据插入list
+//                    result.addAll(cResultPair.getKey());
+//                    // 获取下一个复杂节点
+//                    strKeyName = cResultPair.getValue().getKey();
+//                    cIteraElement = cResultPair.getValue().getValue();
+//                }
+//                throw new JsonSyntaxException(CAN_T_PARSE_VALUE + element);
             }
         }
         return result;
