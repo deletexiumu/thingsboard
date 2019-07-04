@@ -179,7 +179,7 @@ public class JsonConverter {
             // 判断是否基本类型
             if (element.isJsonPrimitive()) {
                 // 基本类型解析
-                result = parseValue(strKeyName+"."+valueEntry.getKey(), element, result);
+                result = parseValue(strKeyName+"_"+valueEntry.getKey(), element, result);
             } else if (element.isJsonArray()) {
                 // 针对数组解析
                 // 获取整体数组
@@ -189,15 +189,15 @@ public class JsonConverter {
                     // 判断是否基本类型
                     if (cJsonArray.get(i).isJsonPrimitive()) {
                         // 基本类型解析
-                        result = parseValue(strKeyName+"."+valueEntry.getKey()+"."+(i+1), cJsonArray.get(i), result);
+                        result = parseValue(strKeyName+"_"+valueEntry.getKey()+"_"+(i+1), cJsonArray.get(i), result);
                     } else {
                         // 对象节点解析
-                        nextNodes.add(new Pair<>(strKeyName+"."+valueEntry.getKey()+"."+(i+1), cJsonArray.get(i)));
+                        nextNodes.add(new Pair<>(strKeyName+"_"+valueEntry.getKey()+"_"+(i+1), cJsonArray.get(i)));
                     }
                 }
             } else {
                 // 对象节点解析
-                nextNodes.add(new Pair<>(strKeyName+"."+valueEntry.getKey(), element));
+                nextNodes.add(new Pair<>(strKeyName+"_"+valueEntry.getKey(), element));
             }
         }
 
@@ -229,10 +229,10 @@ public class JsonConverter {
                         // 判断是否基本类型
                         if (cJsonArray.get(i).isJsonPrimitive()) {
                             // 基本类型解析
-                            result = parseValue(strKeyName+"."+(i+1), cJsonArray.get(i), result);
+                            result = parseValue(strKeyName+"_"+(i+1), cJsonArray.get(i), result);
                         } else {
                             // 对象节点解析
-                            cChildNodeList.add(new Pair<>(strKeyName+"."+(i+1), cJsonArray.get(i)));
+                            cChildNodeList.add(new Pair<>(strKeyName+"_"+(i+1), cJsonArray.get(i)));
                         }
                     }
 

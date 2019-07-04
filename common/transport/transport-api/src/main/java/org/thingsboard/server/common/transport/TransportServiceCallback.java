@@ -15,6 +15,9 @@
  */
 package org.thingsboard.server.common.transport;
 
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.context.request.async.DeferredResult;
+
 /**
  * Created by ashvayka on 04.10.18.
  */
@@ -22,5 +25,6 @@ public interface TransportServiceCallback<T> {
 
     void onSuccess(T msg);
     void onError(Throwable e);
-
+    Object getRespinseWriter();
+//    void setResult(String msg);
 }

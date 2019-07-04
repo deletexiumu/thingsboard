@@ -240,6 +240,11 @@ public class MqttTransportHandler extends ChannelInboundHandlerAdapter implement
             }
 
             @Override
+            public Object getRespinseWriter() {
+                return null;
+            }
+
+            @Override
             public void onError(Throwable e) {
                 log.trace("[{}] Failed to publish msg: {}", sessionId, msg, e);
                 processDisconnect(ctx);
@@ -355,6 +360,11 @@ public class MqttTransportHandler extends ChannelInboundHandlerAdapter implement
                             ctx.writeAndFlush(createMqttConnAckMsg(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE));
                             ctx.close();
                         }
+
+                        @Override
+                        public Object getRespinseWriter() {
+                            return null;
+                        }
                     });
         }
     }
@@ -375,6 +385,11 @@ public class MqttTransportHandler extends ChannelInboundHandlerAdapter implement
                             log.trace("[{}] Failed to process credentials: {}", address, sha3Hash, e);
                             ctx.writeAndFlush(createMqttConnAckMsg(MqttConnectReturnCode.CONNECTION_REFUSED_SERVER_UNAVAILABLE));
                             ctx.close();
+                        }
+
+                        @Override
+                        public Object getRespinseWriter() {
+                            return null;
                         }
                     });
         } catch (Exception e) {

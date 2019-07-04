@@ -276,6 +276,11 @@ public class CoapTransportResource extends CoapResource {
         private final CoapExchange exchange;
         private final Consumer<TransportProtos.SessionInfoProto> onSuccess;
 
+        @Override
+        public Object getRespinseWriter() {
+            return null;
+        }
+
         DeviceAuthCallback(TransportContext transportContext, CoapExchange exchange, Consumer<TransportProtos.SessionInfoProto> onSuccess) {
             this.transportContext = transportContext;
             this.exchange = exchange;
@@ -325,6 +330,11 @@ public class CoapTransportResource extends CoapResource {
         public void onError(Throwable e) {
             exchange.respond(ResponseCode.INTERNAL_SERVER_ERROR);
         }
+
+        @Override
+        public Object getRespinseWriter() {
+            return null;
+        }
     }
 
     private static class CoapNoOpCallback implements TransportServiceCallback<Void> {
@@ -342,6 +352,11 @@ public class CoapTransportResource extends CoapResource {
         @Override
         public void onError(Throwable e) {
             exchange.respond(ResponseCode.INTERNAL_SERVER_ERROR);
+        }
+
+        @Override
+        public Object getRespinseWriter() {
+            return null;
         }
     }
 

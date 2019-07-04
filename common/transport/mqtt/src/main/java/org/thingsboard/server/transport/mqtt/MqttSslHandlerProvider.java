@@ -171,6 +171,11 @@ public class MqttSslHandlerProvider {
                                     log.error(e.getMessage(), e);
                                     latch.countDown();
                                 }
+
+                                @Override
+                                public Object getRespinseWriter() {
+                                    return null;
+                                }
                             });
                     latch.await(10, TimeUnit.SECONDS);
                     if (strCert.equals(credentialsBodyHolder[0])) {

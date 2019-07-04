@@ -19,7 +19,10 @@ import akka.actor.ActorRef;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.async.DeferredResult;
 import org.thingsboard.rule.engine.api.util.DonAsynchron;
 import org.thingsboard.server.actors.ActorSystemContext;
 import org.thingsboard.server.common.msg.cluster.ServerAddress;
@@ -172,7 +175,10 @@ public class LocalTransportService extends AbstractTransportService implements R
             actorContext.getAppActor().tell(wrapper, ActorRef.noSender());
         }
         if (callback != null) {
-            callback.onSuccess(null);
+//            callback.setResult("Success");
+            //TODO 返回信息修改
+            ((DeferredResult<ResponseEntity>)callback.getRespinseWriter()).setResult(new ResponseEntity("{Success}", HttpStatus.OK));
+//            callback.onSuccess(null);
         }
     }
 

@@ -132,6 +132,11 @@ public class GatewaySessionHandler {
                             log.warn("[{}] Failed to process device connect command: {}", sessionId, deviceName, e);
                             future.setException(e);
                         }
+
+                        @Override
+                        public Object getRespinseWriter() {
+                            return null;
+                        }
                     });
         } else {
             future.set(result);
@@ -357,6 +362,11 @@ public class GatewaySessionHandler {
             public void onError(Throwable e) {
                 log.trace("[{}] Failed to publish msg: {}", sessionId, deviceName, msg, e);
                 ctx.close();
+            }
+
+            @Override
+            public Object getRespinseWriter() {
+                return null;
             }
         };
     }

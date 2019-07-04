@@ -195,6 +195,11 @@ public class DeviceApiController {
         }
 
         @Override
+        public Object getRespinseWriter() {
+            return responseWriter;
+        }
+
+        @Override
         public void onSuccess(ValidateDeviceCredentialsResponseMsg msg) {
             if (msg.hasDeviceInfo()) {
                 UUID sessionId = UUID.randomUUID();
@@ -225,6 +230,11 @@ public class DeviceApiController {
         private final TransportService transportService;
         private final SessionInfoProto sessionInfo;
 
+        @Override
+        public Object getRespinseWriter() {
+            return null;
+        }
+
         SessionCloseOnErrorCallback(TransportService transportService, SessionInfoProto sessionInfo) {
             this.transportService = transportService;
             this.sessionInfo = sessionInfo;
@@ -250,6 +260,11 @@ public class DeviceApiController {
         @Override
         public void onSuccess(Void msg) {
             responseWriter.setResult(new ResponseEntity<>(HttpStatus.OK));
+        }
+
+        @Override
+        public Object getRespinseWriter() {
+            return responseWriter;
         }
 
         @Override
