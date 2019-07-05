@@ -16,7 +16,10 @@
 package org.thingsboard.server.service.transport;
 
 import akka.actor.ActorRef;
+import com.google.gson.*;
+import com.google.gson.stream.JsonReader;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
@@ -37,7 +40,15 @@ import org.thingsboard.server.service.transport.msg.TransportToDeviceActorMsgWra
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.Optional;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
 /**
@@ -62,13 +73,38 @@ public class LocalTransportService extends AbstractTransportService implements R
     @Autowired
     private DataDecodingEncodingService encodingService;
 
+    // 响应列表
+    private HashMap<String, String> m_cResponseMap;
+    // 读写锁
+    private ReadWriteLock rwlock = new ReentrantReadWriteLock();
+    // 定时器
+    private Timer m_cTimer;
+
+
     @PostConstruct
     public void init() {
+
+        // 首次加载配置
+        m_cResponseMap = new HashMap<>();
+        loadResponseConfig();
+
+        // 启动定时器，对配置定时更新
+        m_cTimer = new Timer(true);
+        m_cTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                loadResponseConfig();
+            }
+        }, 0, 5*60*1000);
+
         super.init();
     }
 
     @PreDestroy
     public void destroy() {
+        // 取消定时器
+        m_cTimer.cancel();
+
         super.destroy();
     }
 
@@ -175,8 +211,17 @@ public class LocalTransportService extends AbstractTransportService implements R
             actorContext.getAppActor().tell(wrapper, ActorRef.noSender());
         }
         if (callback != null) {
-            //TODO 返回信息修改
-            ((DeferredResult<ResponseEntity>)callback.getRespinseWriter()).setResult(new ResponseEntity("{Success}", HttpStatus.OK));
+            // 上读锁
+            rwlock.readLock().lock();
+            try {
+                //TODO 返回信息修改
+                String strResponse = m_cResponseMap.get(wrapper.getDeviceId().toString());
+                ((DeferredResult<ResponseEntity>)callback.getRespinseWriter()).setResult(new ResponseEntity(strResponse, HttpStatus.OK));
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                rwlock.readLock().unlock();
+            }
 //            callback.onSuccess(null);
         }
     }
@@ -187,6 +232,28 @@ public class LocalTransportService extends AbstractTransportService implements R
                 callback.onError(e);
             }
         };
+    }
+
+    // 加载自定义响应配置
+    private void loadResponseConfig() {
+        // 上写锁
+        rwlock.writeLock().lock();
+        try {
+            // 清理MAP
+            m_cResponseMap.clear();
+            // 读取配置文件
+            JsonReader reader = new JsonReader(new FileReader(this.getClass().getResource("/response.json").getPath()));
+            JsonArray jsonArray = new JsonParser().parse(reader).getAsJsonArray();
+            // 读取每项加载项
+            for (JsonElement jsonElement: jsonArray) {
+                m_cResponseMap.put(jsonElement.getAsJsonObject().get("id").getAsString(),
+                        jsonElement.getAsJsonObject().get("respones").getAsString());
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            rwlock.writeLock().unlock();
+        }
     }
 
 }
