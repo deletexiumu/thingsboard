@@ -175,7 +175,6 @@ public class LocalTransportService extends AbstractTransportService implements R
             actorContext.getAppActor().tell(wrapper, ActorRef.noSender());
         }
         if (callback != null) {
-//            callback.setResult("Success");
             //TODO 返回信息修改
             ((DeferredResult<ResponseEntity>)callback.getRespinseWriter()).setResult(new ResponseEntity("{Success}", HttpStatus.OK));
 //            callback.onSuccess(null);
