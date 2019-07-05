@@ -19,7 +19,7 @@ import akka.actor.ActorRef;
 import com.google.gson.*;
 import com.google.gson.stream.JsonReader;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
+import org.locationtech.jts.util.Debug;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
@@ -40,7 +40,6 @@ import org.thingsboard.server.service.transport.msg.TransportToDeviceActorMsgWra
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashMap;
@@ -242,7 +241,13 @@ public class LocalTransportService extends AbstractTransportService implements R
             // 清理MAP
             m_cResponseMap.clear();
             // 读取配置文件
-            JsonReader reader = new JsonReader(new FileReader(this.getClass().getResource("/response.json").getPath()));
+            JsonReader reader = null;
+            if (java.lang.management.ManagementFactory.getRuntimeMXBean().
+                    getInputArguments().toString().indexOf("-agentlib:jdwp") > 0) {
+                reader = new JsonReader(new FileReader(this.getClass().getResource("/response.json").getPath()));
+            } else {
+                reader = new JsonReader(new FileReader("response.json"));
+            }
             JsonArray jsonArray = new JsonParser().parse(reader).getAsJsonArray();
             // 读取每项加载项
             for (JsonElement jsonElement: jsonArray) {
