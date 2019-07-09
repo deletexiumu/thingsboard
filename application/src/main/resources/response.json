@@ -3,5 +3,10 @@
     "name": "土壤传感器",
     "id": "8db4d8e0-9335-11e9-abc0-05e97a2e9cd9",
     "respones": "Success"
+  },
+  {
+    "name": "佳都人脸传感器",
+    "id": "b1712a60-9f04-11e9-b0cd-ad23b896e1f8",
+    "respones": "face data recive successfully"
   }
 ]
