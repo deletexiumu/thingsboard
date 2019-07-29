@@ -4,8 +4,9 @@
 
 ThingsBoard is an open-source IoT platform for data collection, processing, visualization, and device management.
 
-**自用Thingsboard，对一些底层进行了修改。主要修改了：
-1.json解析函数，支持复杂格式的json数据解析，允许嵌套数据。
+**自用Thingsboard，对一些底层进行了修改。主要修改了：**
+
+**1.json解析函数，支持复杂格式的json数据解析，允许嵌套数据。
 2.自定义返回内容，通过添加response文件，关联设备ID，在每个设备上报数据之后允许自定义格式返回。**
 
 <img src="./img/logo.png?raw=true" width="100" height="100">
